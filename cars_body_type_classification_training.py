@@ -37,17 +37,18 @@ class ResNetCustom(nn.Module):
         super(ResNetCustom, self).__init__()
 
         self.init_conv = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=7, stride=1, padding=3, bias=False),
+            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
+            # nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
         )
 
-        self.layer1 = self._make_layer(64, 64, num_blocks=2, stride=1)
-        self.layer2 = self._make_layer(64, 128, num_blocks=2, stride=2)
-        self.layer3 = self._make_layer(128, 256, num_blocks=2, stride=2)
-        self.layer4 = self._make_layer(256, 512, num_blocks=2, stride=2)
+        self.layer1 = self._make_layer(64, 128, num_blocks=2, stride=1)
+        self.layer2 = self._make_layer(128, 256, num_blocks=2, stride=1)
+        self.layer3 = self._make_layer(256, 512, num_blocks=3, stride=2)
+        self.layer4 = self._make_layer(512, 512, num_blocks=3, stride=2)
         self.layer5 = self._make_layer(512, 512, num_blocks=2, stride=2)
+        self.layer6 = self._make_layer(512, 512, num_blocks=2, stride=2)
 
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
 
@@ -77,13 +78,13 @@ class ResNetCustom(nn.Module):
 data_dir = '/content/drive/MyDrive/Cars_Body_Type'
 
 train_transform = transforms.Compose([
-    transforms.Resize((512, 512)),
+    transforms.Resize((512, 512)),  # сначала масштабируем до нужной стороны (сохраняя пропорции)
+    transforms.Pad(padding=20, fill=(128, 128, 128)),  # добавляем поля вокруг (черные пиксели)
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomRotation(degrees=15),
     transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
     transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5),
-                         (0.5, 0.5, 0.5))
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
 val_transform = transforms.Compose([
@@ -110,7 +111,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 best_val_acc = 0.0
-num_epochs = 27
+num_epochs = 25
 
 best_model = None
 
