@@ -1,11 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
-from tqdm import tqdm
+from torchvision import transforms
 import matplotlib.pyplot as plt
-from PIL import Image
 import numpy as np
 import requests
 from PIL import Image
