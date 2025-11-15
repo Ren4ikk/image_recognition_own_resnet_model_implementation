@@ -1,13 +1,8 @@
-import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
-from tqdm import tqdm
+from torchvision import transforms
 import matplotlib.pyplot as plt
-from PIL import Image
 import numpy as np
 import requests
 from PIL import Image
@@ -38,7 +33,7 @@ class ResidualBlock(nn.Module):
         return out
 
 class ResNetCustom(nn.Module):
-    def __init__(self, num_classes=8, dropout_p=0.3):
+    def __init__(self, num_classes=7, dropout_p=0.3):
         super(ResNetCustom, self).__init__()
 
         self.init_conv = nn.Sequential(

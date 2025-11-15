@@ -6,7 +6,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
@@ -31,6 +31,7 @@ class ResidualBlock(nn.Module):
         out += self.shortcut(x)
         out = F.relu(out)
         return out
+
 
 class ResNetCustom(nn.Module):
     def __init__(self, num_classes=7, dropout_p=0.3):
@@ -74,10 +75,11 @@ class ResNetCustom(nn.Module):
         out = self.fc(out)
         return out
 
-data_dir = '/content/drive/MyDrive/Cars_Body_Type'
+data_dir = 'Cars_Body_Type'
 
 train_transform = transforms.Compose([
-    transforms.Resize((512, 512)),
+    transforms.Resize((512, 512)),  # сначала масштабируем до нужной стороны (сохраняя пропорции)
+    transforms.Pad(padding=20, fill=(128, 128, 128)),  # добавляем поля вокруг (черные пиксели)
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomRotation(degrees=15),
     transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
@@ -96,8 +98,8 @@ val_transform = transforms.Compose([
 train_dataset = datasets.ImageFolder(os.path.join(data_dir, 'train'), transform=train_transform)
 val_dataset = datasets.ImageFolder(os.path.join(data_dir, 'valid'), transform=val_transform)
 
-train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
-val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=2)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=0)
+val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=0)
 
 num_classes = len(train_dataset.classes)
 print("Классов найдено:", num_classes)
@@ -114,38 +116,39 @@ num_epochs = 27
 
 best_model = None
 
-for epoch in range(num_epochs):
-    model.train()
-    running_loss = 0.0
-    for images, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
-        images, labels = images.to(device), labels.to(device)
-
-        optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-        running_loss += loss.item()
-
-    avg_train_loss = running_loss / len(train_loader)
-
-    model.eval()
-    correct, total = 0, 0
-    with torch.no_grad():
-        for images, labels in val_loader:
+if __name__ == "__main__":
+    for epoch in range(num_epochs):
+        model.train()
+        running_loss = 0.0
+        for images, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
             images, labels = images.to(device), labels.to(device)
+
+            optimizer.zero_grad()
             outputs = model(images)
-            _, predicted = torch.max(outputs, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
 
-    val_acc = 100 * correct / total
-    print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {avg_train_loss:.4f} | Val Acc: {val_acc:.2f}%")
+        avg_train_loss = running_loss / len(train_loader)
 
-    if val_acc > best_val_acc:
-        best_val_acc = val_acc
-        best_model = model.state_dict()
-        torch.save(model.state_dict(), "best_resnet_model.pth")
-        print("Обнаружена новая лучшая модель")
+        model.eval()
+        correct, total = 0, 0
+        with torch.no_grad():
+            for images, labels in val_loader:
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                _, predicted = torch.max(outputs, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        val_acc = 100 * correct / total
+        print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {avg_train_loss:.4f} | Val Acc: {val_acc:.2f}%")
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            best_model = model.state_dict()
+            torch.save(model.state_dict(), "best_resnet_model.pth")
+            print("Обнаружена новая лучшая модель")
 print("Сохранена лучшая модель")
-torch.save(best_model, "/content/drive/MyDrive/best_resnet_model.pth")
+torch.save(best_model, "new_best_models/best_resnet_model.pth")
