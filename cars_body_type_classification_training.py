@@ -78,7 +78,8 @@ class ResNetCustom(nn.Module):
 data_dir = 'Cars_Body_Type'
 
 train_transform = transforms.Compose([
-    transforms.Resize((512, 512)),
+    transforms.Resize((512, 512)),  # сначала масштабируем до нужной стороны (сохраняя пропорции)
+    transforms.Pad(padding=20, fill=(128, 128, 128)),  # добавляем поля вокруг (черные пиксели)
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomRotation(degrees=15),
     transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),

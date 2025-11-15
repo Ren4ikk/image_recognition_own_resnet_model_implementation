@@ -66,7 +66,6 @@ class ResNetCustom(nn.Module):
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
-        out = self.layer5(out)
         out = self.avg_pool(out)
         out = torch.flatten(out, 1)
         out = self.dropout(out)
@@ -83,16 +82,24 @@ model.eval()
 
 print("Модель загружена и готова к тестированию")
 
+# transform = transforms.Compose([
+#     transforms.Resize((550, 550)),
+#     transforms.CenterCrop((512, 512)),
+#     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+#     transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.0)),
+#     transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.5),
+#     transforms.ToTensor(),
+#     transforms.Normalize((0.5, 0.5, 0.5),
+#                          (0.5, 0.5, 0.5))
+# ])
+
 transform = transforms.Compose([
-    transforms.Resize((550, 550)),
-    transforms.CenterCrop((512, 512)),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-    transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.0)),
-    transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.5),
+    transforms.Resize((512, 512)),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5),
                          (0.5, 0.5, 0.5))
 ])
+
 
 def predict_with_crop_tta(image_path, model, class_names, device, n_crops=100):
     image = Image.open(image_path).convert("RGB")
