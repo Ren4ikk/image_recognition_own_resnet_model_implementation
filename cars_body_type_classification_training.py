@@ -38,10 +38,10 @@ class ResNetCustom(nn.Module):
         super(ResNetCustom, self).__init__()
 
         self.init_conv = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=7, stride=1, padding=3, bias=False),
+            nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         )
 
         self.layer1 = self._make_layer(64, 64, num_blocks=2, stride=1)
