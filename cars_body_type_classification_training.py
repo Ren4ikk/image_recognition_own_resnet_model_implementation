@@ -6,7 +6,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
@@ -32,23 +32,24 @@ class ResidualBlock(nn.Module):
         out = F.relu(out)
         return out
 
+
 class ResNetCustom(nn.Module):
     def __init__(self, num_classes=7, dropout_p=0.3):
         super(ResNetCustom, self).__init__()
 
         self.init_conv = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             # nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
         )
 
-        self.layer1 = self._make_layer(64, 128, num_blocks=2, stride=1)
+        self.layer1 = self._make_layer(64, 128, num_blocks=2, stride=2)
         self.layer2 = self._make_layer(128, 256, num_blocks=2, stride=1)
         self.layer3 = self._make_layer(256, 512, num_blocks=3, stride=2)
         self.layer4 = self._make_layer(512, 512, num_blocks=3, stride=2)
         self.layer5 = self._make_layer(512, 512, num_blocks=2, stride=2)
-        self.layer6 = self._make_layer(512, 512, num_blocks=2, stride=2)
+        # self.layer6 = self._make_layer(512, 512, num_blocks=2, stride=2)
 
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
 
@@ -75,7 +76,7 @@ class ResNetCustom(nn.Module):
         out = self.fc(out)
         return out
 
-data_dir = '/content/drive/MyDrive/Cars_Body_Type'
+data_dir = 'Cars_Body_Type'
 
 train_transform = transforms.Compose([
     transforms.Resize((512, 512)),  # сначала масштабируем до нужной стороны (сохраняя пропорции)
@@ -149,4 +150,4 @@ for epoch in range(num_epochs):
         torch.save(model.state_dict(), "best_resnet_model.pth")
         print("Обнаружена новая лучшая модель")
 print("Сохранена лучшая модель")
-torch.save(best_model, "/content/drive/MyDrive/best_resnet_model.pth")
+torch.save(best_model, "new_best_models/best_resnet_model.pth")
