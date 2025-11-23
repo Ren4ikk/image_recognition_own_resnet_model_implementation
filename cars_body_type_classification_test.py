@@ -96,7 +96,7 @@ def predict_with_crop_tta(image_path, model, class_names, device, n_crops=25):
     w, h = image.size
     preds = []
 
-    crop_ratios = np.linspace(0.0, 0.0, n_crops)
+    crop_ratios = np.linspace(0.0, 0.2, n_crops)
 
     for r in crop_ratios:
         # по ширине меняем в 2 раза медленнее
@@ -138,7 +138,7 @@ def predict_with_crop_tta(image_path, model, class_names, device, n_crops=25):
 
     return class_names[class_index]
 
-url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcToQtjS6XHgWmhBOQls7fux0veoG1LFuF-eXw&s"
+url = "https://autogoda.ru/premiya/2022/3538362.jpg"
 response = requests.get(url)
 image = Image.open(BytesIO(response.content)).convert("RGB")
 
