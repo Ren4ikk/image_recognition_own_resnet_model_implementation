@@ -8,6 +8,7 @@ import requests
 from PIL import Image
 from io import BytesIO
 
+
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
         super(ResidualBlock, self).__init__()
@@ -32,6 +33,7 @@ class ResidualBlock(nn.Module):
         out = F.relu(out)
         return out
 
+
 class ResNetCustom(nn.Module):
     def __init__(self, num_classes=7, dropout_p=0.3):
         super(ResNetCustom, self).__init__()
@@ -49,9 +51,7 @@ class ResNetCustom(nn.Module):
         self.layer4 = self._make_layer(256, 512, num_blocks=2, stride=2)
 
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-
         self.dropout = nn.Dropout(p=dropout_p)
-
         self.fc = nn.Linear(512, num_classes)
 
     def _make_layer(self, in_channels, out_channels, num_blocks, stride):
@@ -82,39 +82,32 @@ model.eval()
 
 print("Модель загружена и готова к тестированию")
 
-# transform = transforms.Compose([
-#     transforms.Resize((550, 550)),
-#     transforms.CenterCrop((512, 512)),
-#     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-#     transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.0)),
-#     transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.5),
-#     transforms.ToTensor(),
-#     transforms.Normalize((0.5, 0.5, 0.5),
-#                          (0.5, 0.5, 0.5))
-# ])
-
 transform = transforms.Compose([
     transforms.Resize((512, 512)),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+    transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.5),  # вот это протестировать ещё нужно ли
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5),
                          (0.5, 0.5, 0.5))
 ])
 
-
-def predict_with_crop_tta(image_path, model, class_names, device, n_crops=100):
+def predict_with_crop_tta(image_path, model, class_names, device, n_crops=25):
     image = Image.open(image_path).convert("RGB")
     w, h = image.size
     preds = []
 
-    crop_ratios = np.linspace(0.0, 0.2, n_crops)
+    crop_ratios = np.linspace(0.0, 0.0, n_crops)
 
     for r in crop_ratios:
-        left = 0
-        # left = int(w * r)
-        top = int(h * r)
-        right = int(w)
-        # right = int(w * (1 - r))
-        bottom = int(h * (1 - r))
+        # по ширине меняем в 2 раза медленнее
+        r_w = r * 0.5  # ширина урезается в 2 раза медленнее
+        r_h = r  # высота как раньше
+
+        left = int(w * r_w)
+        right = int(w * (1 - r_w))
+
+        top = int(h * r_h)
+        bottom = int(h * (1 - r_h))
 
         cropped = image.crop((left, top, right, bottom))
         img_t = transform(cropped).unsqueeze(0).to(device)
@@ -123,20 +116,29 @@ def predict_with_crop_tta(image_path, model, class_names, device, n_crops=100):
             outputs = model(img_t)
             preds.append(outputs)
 
+    cropped.save("52.jpg")
+    cropped_image = Image.open("52.jpg").convert("RGB")
     avg_pred = torch.stack(preds).mean(0)
-    print(class_names)
-    print(avg_pred)
-    class_index = avg_pred.argmax().item()
+    from tabulate import tabulate
+    probs = torch.softmax(avg_pred, dim=1).cpu().numpy().flatten()  # если avg_pred shape [1, C]
 
+    rows = []
+    for name, p in zip(class_names, probs):
+        rows.append([name, f"{p:.4f}"])
+
+    print(tabulate(rows, headers=["Класс", "Вероятность"], tablefmt="github"))
+
+    class_index = avg_pred.argmax().item()
     print(f"Финальное предсказание (усреднённое по {n_crops} кропам): {class_names[class_index]}")
-    plt.imshow(image)
+
+    plt.imshow(cropped_image)
     plt.axis("off")
     plt.title(f"Предсказано: {class_names[class_index]}")
     plt.show()
 
     return class_names[class_index]
 
-url = "https://favorit-motors.ru/upload/medialibrary/dee/kupe_2.jpg"
+url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcToQtjS6XHgWmhBOQls7fux0veoG1LFuF-eXw&s"
 response = requests.get(url)
 image = Image.open(BytesIO(response.content)).convert("RGB")
 
