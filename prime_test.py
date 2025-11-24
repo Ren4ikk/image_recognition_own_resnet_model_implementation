@@ -77,21 +77,20 @@ class ResNetCustom(nn.Module):
 transform_func = transforms.Compose([
     transforms.Resize((512, 512)),
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-    transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.5),  # вот это протестировать ещё нужно ли
+    transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.5),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5),
                          (0.5, 0.5, 0.5))
 ])
 
 def generate_crops(image, n_crops=25):
-    """Создаёт последовательность кропов с разной степенью обрезки."""
     w, h = image.size
     crop_ratios = np.linspace(0.0, 0.2, n_crops)
     crops = []
 
     for r in crop_ratios:
-        r_w = r * 0.5  # ширина урезается в 2 раза медленнее
-        r_h = r        # высота уменьшается сильнее
+        r_w = r * 0.5
+        r_h = r
 
         left = int(w * r_w)
         right = int(w * (1 - r_w))
@@ -104,7 +103,6 @@ def generate_crops(image, n_crops=25):
     return crops
 
 def transform_crops(crops, transform, device):
-    """Применяет трансформации к каждому кропу и возвращает батч тензоров."""
     transformed = []
 
     for crop in crops:
@@ -115,19 +113,16 @@ def transform_crops(crops, transform, device):
 
 
 def predict_from_crops(model, transformed_crops, class_names):
-    """Получает предсказания от модели для всех трансформированных кропов
-       и усредняет вероятности."""
     preds = []
 
     with torch.no_grad():
         for img_t in transformed_crops:
-            outputs = model(img_t)  # [1, num_classes]
+            outputs = model(img_t)
             preds.append(outputs)
 
-    avg_pred = torch.stack(preds).mean(0)  # [1, num_classes]
+    avg_pred = torch.stack(preds).mean(0)
     probs = torch.softmax(avg_pred, dim=1).cpu().numpy().flatten()
 
-    # — красивый вывод таблицы
     rows = [[name, f"{p:.4f}"] for name, p in zip(class_names, probs)]
     print(tabulate(rows, headers=["Класс", "Вероятность"], tablefmt="github"))
 
@@ -137,32 +132,22 @@ def predict_from_crops(model, transformed_crops, class_names):
     return final_class, probs
 
 def predict_with_crop_tta(image_path, model, class_names, transform, device, n_crops=25):
-    """Основная функция, использующая 3 подфункции."""
     image = Image.open(image_path).convert("RGB")
 
-    # --------------------------
-    # 0) Показываем исходное изображение
-    # --------------------------
     plt.figure(figsize=(6, 6))
     plt.imshow(image)
     plt.axis("off")
     plt.title("Исходное изображение")
     plt.show()
 
-    # 1: создаём кропы
     crops = generate_crops(image, n_crops=n_crops)
 
-    # 2: трансформируем
     transformed = transform_crops(crops, transform, device)
 
-    # --------------------------
-    # ПОКАЗ: последний кроп после трансформаций
-    # --------------------------
     last_t = transformed[-1].squeeze(0).cpu()  # [3,H,W]
     last_t = last_t * 0.5 + 0.5  # denormalize
     last_t = last_t.numpy().transpose(1, 2, 0)  # [H,W,3]
 
-    # 3: получаем предсказание
     final_class, probs = predict_from_crops(model, transformed, class_names)
 
     plt.figure(figsize=(6, 6))
@@ -179,7 +164,7 @@ model.to(device)
 model.eval()
 print("Модель загружена и готова к тестированию")
 
-url = "https://www.inomarkispb.ru/image/catalog/blog/vidy-sedanov/6521_3.jpg"
+url = "https://images.drive.ru/i/0/5b277480ec05c4bf0d000012.jpg"
 response = requests.get(url)
 image = Image.open(BytesIO(response.content)).convert("RGB")
 image.save("test_car.jpg")
