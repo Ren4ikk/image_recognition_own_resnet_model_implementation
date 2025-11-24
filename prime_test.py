@@ -148,6 +148,9 @@ def predict_with_crop_tta(image_path, model, class_names, transform, device, n_c
     last_t = last_t * 0.5 + 0.5  # denormalize
     last_t = last_t.numpy().transpose(1, 2, 0)  # [H,W,3]
 
+    model.load_state_dict(torch.load("best_resnet_model_actual.pth", map_location=device))
+    print("Модель загружена и готова к тестированию")
+
     final_class, probs = predict_from_crops(model, transformed, class_names)
 
     plt.figure(figsize=(6, 6))
@@ -157,12 +160,12 @@ def predict_with_crop_tta(image_path, model, class_names, transform, device, n_c
     plt.show()
 
 device = torch.device("cpu")
+
 num_classes = 7
+
 model = ResNetCustom(num_classes=num_classes)
-model.load_state_dict(torch.load("best_resnet_model_actual.pth", map_location=device))
 model.to(device)
 model.eval()
-print("Модель загружена и готова к тестированию")
 
 url = "https://images.drive.ru/i/0/5b277480ec05c4bf0d000012.jpg"
 response = requests.get(url)
