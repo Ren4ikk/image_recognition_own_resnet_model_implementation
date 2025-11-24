@@ -10,8 +10,6 @@ from io import BytesIO
 from tabulate import tabulate
 
 
-# ---------------- A0: Модель ----------------
-
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
         super(ResidualBlock, self).__init__()
@@ -76,144 +74,115 @@ class ResNetCustom(nn.Module):
         return out
 
 
+transform_func = transforms.Compose([
+    transforms.Resize((512, 512)),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+    transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.5),  # вот это протестировать ещё нужно ли
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5),
+                         (0.5, 0.5, 0.5))
+])
+
+def generate_crops(image, n_crops=25):
+    """Создаёт последовательность кропов с разной степенью обрезки."""
+    w, h = image.size
+    crop_ratios = np.linspace(0.0, 0.2, n_crops)
+    crops = []
+
+    for r in crop_ratios:
+        r_w = r * 0.5  # ширина урезается в 2 раза медленнее
+        r_h = r        # высота уменьшается сильнее
+
+        left = int(w * r_w)
+        right = int(w * (1 - r_w))
+        top = int(h * r_h)
+        bottom = int(h * (1 - r_h))
+
+        cropped = image.crop((left, top, right, bottom))
+        crops.append(cropped)
+
+    return crops
+
+def transform_crops(crops, transform, device):
+    """Применяет трансформации к каждому кропу и возвращает батч тензоров."""
+    transformed = []
+
+    for crop in crops:
+        img_t = transform(crop).unsqueeze(0).to(device)  # [1,3,H,W]
+        transformed.append(img_t)
+
+    return transformed
+
+
+def predict_from_crops(model, transformed_crops, class_names):
+    """Получает предсказания от модели для всех трансформированных кропов
+       и усредняет вероятности."""
+    preds = []
+
+    with torch.no_grad():
+        for img_t in transformed_crops:
+            outputs = model(img_t)  # [1, num_classes]
+            preds.append(outputs)
+
+    avg_pred = torch.stack(preds).mean(0)  # [1, num_classes]
+    probs = torch.softmax(avg_pred, dim=1).cpu().numpy().flatten()
+
+    # — красивый вывод таблицы
+    rows = [[name, f"{p:.4f}"] for name, p in zip(class_names, probs)]
+    print(tabulate(rows, headers=["Класс", "Вероятность"], tablefmt="github"))
+
+    final_class = class_names[avg_pred.argmax().item()]
+    print(f"\nФинальный вывод (усреднение по кропам): {final_class}")
+
+    return final_class, probs
+
+def predict_with_crop_tta(image_path, model, class_names, transform, device, n_crops=25):
+    """Основная функция, использующая 3 подфункции."""
+    image = Image.open(image_path).convert("RGB")
+
+    # --------------------------
+    # 0) Показываем исходное изображение
+    # --------------------------
+    plt.figure(figsize=(6, 6))
+    plt.imshow(image)
+    plt.axis("off")
+    plt.title("Исходное изображение")
+    plt.show()
+
+    # 1: создаём кропы
+    crops = generate_crops(image, n_crops=n_crops)
+
+    # 2: трансформируем
+    transformed = transform_crops(crops, transform, device)
+
+    # --------------------------
+    # ПОКАЗ: последний кроп после трансформаций
+    # --------------------------
+    last_t = transformed[-1].squeeze(0).cpu()  # [3,H,W]
+    last_t = last_t * 0.5 + 0.5  # denormalize
+    last_t = last_t.numpy().transpose(1, 2, 0)  # [H,W,3]
+
+    # 3: получаем предсказание
+    final_class, probs = predict_from_crops(model, transformed, class_names)
+
+    plt.figure(figsize=(6, 6))
+    plt.imshow(last_t)
+    plt.axis("off")
+    plt.title(f"Предсказание: {final_class}")
+    plt.show()
+
 device = torch.device("cpu")
 num_classes = 7
 model = ResNetCustom(num_classes=num_classes)
 model.load_state_dict(torch.load("best_resnet_model_actual.pth", map_location=device))
 model.to(device)
 model.eval()
-
 print("Модель загружена и готова к тестированию")
 
-# ---------------- A1: Базовая предобработка изображения ----------------
-
-# Здесь только приведение к RGB и первичный resize (если нужно).
-transform = transforms.Compose([
-    transforms.Resize((512, 512)),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-    transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.5),
-    transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5),
-                         (0.5, 0.5, 0.5))
-    # можно убрать, если кропы считаешь по оригиналу
-])
-
-# ---------------- A2: Правила предобработки + TTA-кропы ----------------
-
-# A1: предобработка всего изображения
-def preprocess_image(image_path):
-    """
-    A1: Получение изображения и полная предобработка transform.
-    Возвращает тензор [C, H, W].
-    """
-    image = Image.open(image_path).convert("RGB")
-    img_t = transform(image)      # здесь уже применяем transform
-    return img_t
-
-
-# A2: формирование кропов ИЗ уже предобработанного тензора
-def make_tta_crops(img_tensor, n_crops=1):
-    """
-    A2: Формирование набора TTA-кропов из предобработанного тензора.
-    На входе: тензор [C, H, W] после transform.
-    Возвращает список тензоров кропов и PIL‑картинку последнего кропа для визуализации.
-    """
-    # размеры тензора
-    _, h, w = img_tensor.shape
-
-    crop_ratios = np.linspace(0.0, 0.2, n_crops)
-    tensors = []
-    last_crop_tensor = None
-
-    for r in crop_ratios:
-        r_w = int(w * r * 0.05)
-        r_h = int(h * r)
-
-        left = r_w
-        right = w - r_w
-        top = r_h
-        bottom = h - r_h
-
-        # кроп по тензору: [C, H, W] -> [C, h_crop, w_crop]
-        crop_t = img_tensor[:, top:bottom, left:right]
-        last_crop_tensor = crop_t
-        tensors.append(crop_t)
-
-    # последний кроп в PIL для plt.imshow
-    vis_crop = transforms.ToPILImage()(last_crop_tensor.cpu())
-
-    return tensors, vis_crop
-
-
-# ---------------- A3: Инференс по кропам и усреднение ----------------
-
-def infer_with_tta(crop_tensors, model, device):
-    """
-    A3: Инференс модели по каждому кропу и усреднение выходов.
-    Возвращает усреднённый тензор логитов [1, num_classes].
-    """
-    preds = []
-    model.eval()
-    with torch.no_grad():
-        for img_t in crop_tensors:
-            img_t = img_t.unsqueeze(0).to(device)  # [1, 3, H, W]
-            outputs = model(img_t)
-            preds.append(outputs)
-
-    avg_pred = torch.stack(preds).mean(0)  # [1, num_classes]
-    return avg_pred
-
-
-# ---------------- A4: Постобработка, выбор класса, визуализация ----------------
-
-def postprocess_and_visualize(avg_pred, class_names, cropped_image, n_crops=25):
-    """
-    A4: Расчёт вероятностей, выбор класса, вывод таблицы и визуализация.
-    """
-    probs = torch.softmax(avg_pred, dim=1).cpu().numpy().flatten()
-
-    rows = []
-    for name, p in zip(class_names, probs):
-        rows.append([name, f"{p:.4f}"])
-
-    print(tabulate(rows, headers=["Класс", "Вероятность"], tablefmt="github"))
-
-    class_index = avg_pred.argmax().item()
-    print(f"Финальное предсказание (усреднённое по {n_crops} кропам): "
-          f"{class_names[class_index]}")
-
-    plt.imshow(cropped_image)
-    plt.axis("off")
-    plt.title(f"Предсказано: {class_names[class_index]}")
-    plt.show()
-
-    return class_names[class_index]
-
-
-# ---------------- Объединяющая функция (A0) ----------------
-
-def predict_with_pipeline(image_path, model, class_names, device, n_crops=25):
-    # A1: предобработка до тензора
-    prepared_tensor = preprocess_image(image_path)
-
-    # A2: кропы из этого тензора
-    crop_tensors, vis_crop = make_tta_crops(prepared_tensor, n_crops=n_crops)
-
-    # A3: инференс
-    avg_pred = infer_with_tta(crop_tensors, model, device)
-
-    # A4: постобработка
-    final_class = postprocess_and_visualize(avg_pred, class_names, vis_crop, n_crops=n_crops)
-    return final_class
-
-
-# ---------------- Пример использования ----------------
-
-url = "https://www.wheelka.ru/i/uploads/images/CighAE8Uma4.jpg"
+url = "https://www.inomarkispb.ru/image/catalog/blog/vidy-sedanov/6521_3.jpg"
 response = requests.get(url)
 image = Image.open(BytesIO(response.content)).convert("RGB")
 image.save("test_car.jpg")
 
 class_names = ['Convertible', 'Coupe', 'Hatchback', 'Pick-Up', 'SUV', 'Sedan', 'VAN']
-
-predict_with_pipeline("test_car.jpg", model, class_names, device)
+predict_with_crop_tta("test_car.jpg", model, class_names, transform_func, device)
