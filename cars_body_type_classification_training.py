@@ -112,7 +112,6 @@ best_val_acc = 0.0
 num_epochs = 25
 best_model = None
 
-# для графиков
 history = {
     "train_loss": [],
     "train_acc": [],
@@ -140,7 +139,6 @@ if __name__ == "__main__":
 
             running_loss += loss.item()
 
-            # accuracy
             _, predicted = torch.max(outputs, 1)
             total_train += labels.size(0)
             correct_train += (predicted == labels).sum().item()
@@ -168,7 +166,6 @@ if __name__ == "__main__":
         val_acc = 100 * correct_val / total_val
         val_loss = val_loss_sum / len(val_loader)
 
-        # сохраняем историю
         history["train_loss"].append(avg_train_loss)
         history["train_acc"].append(train_acc)
         history["val_loss"].append(val_loss)
@@ -206,5 +203,5 @@ if __name__ == "__main__":
 
     plt.show()
 
-print("Сохранена лучшая модель")
-torch.save(best_model, "new_best_models/best_resnet_model.pth")
+    print("Сохранена лучшая модель")
+    torch.save(best_model, "new_best_models/best_resnet_model.pth")
