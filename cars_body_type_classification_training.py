@@ -49,7 +49,6 @@ class ResNetCustom(nn.Module):
         self.layer2 = self._make_layer(64, 128, num_blocks=2, stride=2)
         self.layer3 = self._make_layer(128, 256, num_blocks=2, stride=2)
         self.layer4 = self._make_layer(256, 512, num_blocks=2, stride=2)
-        self.layer5 = self._make_layer(512, 512, num_blocks=2, stride=2)
 
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.dropout = nn.Dropout(p=dropout_p)
@@ -67,7 +66,6 @@ class ResNetCustom(nn.Module):
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
-        out = self.layer5(out)
         out = self.avg_pool(out)
         out = torch.flatten(out, 1)
         out = self.dropout(out)
@@ -79,13 +77,13 @@ data_dir = 'Cars_Body_Type'
 
 train_transform = transforms.Compose([
     transforms.Resize((512, 512)),
-    transforms.Pad(padding=20, fill=(128, 128, 128)),
-    transforms.Resize((512, 512)),
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomRotation(degrees=15),
     transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
+    transforms.RandomResizedCrop(512, scale=(0.8, 1.0)),
     transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    transforms.Normalize((0.5, 0.5, 0.5),
+                         (0.5, 0.5, 0.5))
 ])
 
 val_transform = transforms.Compose([

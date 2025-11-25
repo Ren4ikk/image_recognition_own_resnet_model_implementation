@@ -145,7 +145,6 @@ def predict_with_crop_tta(image_path, model, class_names, transform, device, n_c
     transformed = transform_crops(crops, transform, device)
 
     last_t = transformed[-1].squeeze(0).cpu()  # [3,H,W]
-    last_t = last_t * 0.5 + 0.5  # denormalize
     last_t = last_t.numpy().transpose(1, 2, 0)  # [H,W,3]
 
     model.load_state_dict(torch.load("best_resnet_model_actual.pth", map_location=device))
@@ -167,7 +166,7 @@ model = ResNetCustom(num_classes=num_classes)
 model.to(device)
 model.eval()
 
-url = "https://images.drive.ru/i/0/5b277480ec05c4bf0d000012.jpg"
+url = "https://favorit-motors.ru/upload/medialibrary/69d/kabriolet_2_1_.jpg"
 response = requests.get(url)
 image = Image.open(BytesIO(response.content)).convert("RGB")
 image.save("test_car.jpg")
